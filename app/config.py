@@ -1,5 +1,5 @@
 """
-Application configuration for the forecasting backend (Phase 1).
+Application configuration for the forecasting backend (Phase 1 -> refactor).
 
 This module keeps environment-ready settings and project paths in one place.
 Avoid putting secrets in code; use environment variables in production.
@@ -27,7 +27,7 @@ class Settings:
     """
 
     # App/runtime
-    app_name: str = os.getenv("APP_NAME", "timeseries-forecasting-backend")
+    app_name: str = os.getenv("APP_NAME", "Time Series Forecasting for System Resource Utilization")
     environment: str = os.getenv("ENVIRONMENT", "development")  # dev|staging|prod
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
 
@@ -46,10 +46,27 @@ class Settings:
     # Dataset
     dataset_filename: str = os.getenv("DATASET_FILENAME", "casestudy.xlsx")
 
+    # Column mapping to isolate dataset-specific schema (can be adjusted later)
+    data_columns: dict = None
+
+    def __post_init__(self) -> None:
+        if self.data_columns is None:
+            # Defaults assume the original dataset schema; these can be changed
+            # without editing the code to adapt a new dataset.
+            object.__setattr__(
+                self,
+                "data_columns",
+                {
+                    "group": "State",   # grouping column (e.g. resource id)
+                    "date": "Date",     # timestamp column
+                    "value": "Total",   # target/metric column
+                    "category": "Category",
+                },
+            )
+
     @property
     def dataset_path(self) -> Path:
         return self.data_dir / self.dataset_filename
 
 
 settings = Settings()
-
