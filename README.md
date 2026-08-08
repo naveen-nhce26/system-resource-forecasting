@@ -524,7 +524,5 @@ The repository is structured as an end-to-end forecasting application. Runtime v
 
 **Kanchukommala Naveen**
 
-Data Science & AI Engineer
-
-* GitHub: `naveen-nhce26`
-* LinkedIn: `naveen-kanchukommala`
+**GitHub:** https://github.com/naveen-nhce26
+**LinkedIn:** https://www.linkedin.com/in/naveen-kanchukommala/
