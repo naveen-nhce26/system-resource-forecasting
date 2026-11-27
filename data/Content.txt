@@ -1,689 +1,287 @@
-Bro, let's document this as our actual project architecture—not just a list of technologies. I'll explain what happens from the moment a user uploads a video until they receive the final analysis.
 
-### AI-Powered Multilingual Video Intelligence Platform
+Bro, here's the consolidated summary of our discussion and the architecture we've decided to build.
 
-### 1\. Project overview
+### AI-Powered Multilingual Video Intelligence – Preprocessing Stage
 
-Our platform accepts a video file or a supported video URL and analyses both its audio and visual content.
+### 1\. Our main objective
 
-For example, imagine a one-minute Japanese video containing:
+Given a 30-second video at 30 FPS:
 
-* A person speaking negatively about a medicine.
+* Total frames: 900
 
-* Japanese subtitles burned into the video.
+* Extract audio separately.
 
-* Images displaying product names and medical benefits.
+* Identify important visual information.
 
-* Chat screenshots containing patient experiences.
+* Extract all visible burned-in subtitles.
 
-* Visual information about symptoms and adverse effects.
+* Reduce redundant frames without losing meaningful information.
 
-Our system should understand all these sources, translate the relevant content into English, identify important entities, compare what is spoken with what is displayed, and generate a complete evidence-backed report.
+* Prepare everything for GPT-4o analysis.
 
-Our central principle:
+Our architecture has three independent processing tracks.
 
-The system must not analyse only what the speaker says. It must also understand everything important displayed visually.
+### 2\. Overall architecture
 
-### 2\. Overall system architecture
+Input Video
 
-We divide the platform into six major layers.
+### 30 seconds · 900 frames
 
-1\. Frontend layer
-
-React + TypeScript
-
-Upload video, enter URL, click Analyse and view results.
-
-2\. Backend and orchestration
-
-Python + FastAPI
-
-Manage the analysis job and coordinate every processing stage.
-
-3\. Video preprocessing
-
-FFmpeg + OpenCV
-
-Extract audio, frames, timestamps, metadata and subtitle tracks.
-
-4\. AI intelligence layer
-
-Azure OpenAI
-
-GPT-4o + GPT-4o Transcribe
-
-Speech recognition, translation, vision and reasoning
-
-5\. Evidence and storage layer
-
-Azure SQL + Azure Blob Storage
-
-Store original media, extracted assets and structured evidence.
-
-6\. Output layer
-
-Python + React
-
-Transcripts, subtitles, visual insights, summaries, JSON and PDF.
-
-### 3\. Technology stack
-
-Here is the stack I recommend for implementation.
-
-| Layer               | Technology         | Purpose                                 |
-| ------------------- | ------------------ | --------------------------------------- |
-| Frontend            | React              | User interface                          |
-| Frontend language   | TypeScript         | Type-safe application development       |
-| UI styling          | Tailwind CSS       | Responsive interface                    |
-| Backend             | Python + FastAPI   | API and orchestration                   |
-| Video processing    | FFmpeg             | Audio, frame and subtitle extraction    |
-| Frame processing    | OpenCV             | Frame sampling and scene analysis       |
-| Speech recognition  | GPT-4o Transcribe  | Japanese audio transcription            |
-| Main AI             | GPT-4o             | Translation, vision and reasoning       |
-| Media storage       | Azure Blob Storage | Video, audio, frames and output files   |
-| Structured database | Azure SQL          | Jobs, timestamps, evidence and entities |
-| Data validation     | Pydantic           | Validate AI-generated JSON              |
-| Database access     | SQLAlchemy         | Python-to-SQL integration               |
-| PDF generation      | Python ReportLab   | Generate analysis reports               |
-| Subtitle generation | Python             | Generate SRT files                      |
-| API communication   | REST API           | Frontend/backend communication          |
-
-Why two storage systems?
-
-* Blob Storage stores large files such as videos, extracted frames, audio and PDFs. Microsoft Learn +1
-
-* Azure SQL stores structured records such as video IDs, evidence IDs, timestamps, extracted entities and analysis results.
-
-They serve different purposes.
-
-### 4\. AI models used
-
-Our revised design has two Azure OpenAI model deployments.
-
-Model 1: GPT-4o
-
-Main intelligence model
-
-### GPT-4o
-
-Azure OpenAI · East US
-
-Used for:
-
-* Japanese-to-English translation.
-
-* Visual understanding of images and screenshots.
-
-* Reading burned-in subtitles.
-
-* Product and medicine information extraction.
-
-* Logo and brand identification.
-
-* Chart and graph interpretation.
-
-* Comparing spoken and displayed information.
-
-* Evidence reconciliation.
-
-* Video and executive summaries.
-
-GPT-4o supports text and image inputs, making it suitable for the vision and reasoning stages. Microsoft Learn +1
-
-Model 2: GPT-4o Transcribe
-
-Speech recognition
-
-### gpt-4o-transcribe
-
-Azure OpenAI · intended deployment region: East US
-
-Used for:
-
-* Japanese speech recognition.
-
-* Japanese transcript generation.
-
-* Timestamped speech segments, where supported by the selected API.
-
-This is a specialised transcription model, not the standard GPT-4o chat deployment.
-
-Deployment availability and API support must be verified in your East US Azure resource before implementation.
-
-Important model distinction: We use two model deployments, not one identical model. Both belong to the Azure OpenAI side of the architecture. We have removed the separate Azure AI Speech service and English TTS.
-
-### 5\. Complete pipeline: how it works step by step
-
-Let's use our Japanese medicine-related video example throughout.
-
-### Stage 1 — Video upload
-
-![ノーコードで自作！MP4動画から指定した静止画を書き出すアプリを作成する方法｜クリエイティブボーイ](https://images.openai.com/static-rsc-4/hF5_1WfcSc8y8fEnBL_1l6lOKgFueAU-mDZYgXbRzvNf6aneTWRtoLdJQw8Sez__dQbt4rs4JEgKX8jv4ptobptCo1RweHXLhJCtdg4JD22M4hN2iRlnRMbHft-_ulGlTttF_75Y9_3qmIOsmKBSbuSXMlwWHxbEWK6Zrnj0MT5IRCsNsnA5fnOcA7MO8ZW7?purpose=fullsize)
-
-Technology: React + TypeScript + FastAPI + Azure Blob Storage.
-
-What happens:
-
-* User uploads a video or provides a supported URL.
-
-* React sends the video to our FastAPI backend.
-
-* Backend validates the file format, size and duration.
-
-* The original video is stored in Azure Blob Storage.
-
-* Backend generates a unique `video_id` and processing job ID.
-
-Example:
-
-```json
-{
-  "video_id": "VID_001",
-  "filename": "japanese_medicine_video.mp4",
-  "language": "ja",
-  "status": "uploaded"
-}
-```
-
-The user clicks Analyse. The backend starts the complete processing workflow.
-
-### Stage 2 — Video preprocessing
-
-![What is a favicon? How does a website icon impact brand recognition and click-through experience?](https://images.openai.com/static-rsc-4/AfhUeLW6dGwsMyGHYSgh6Pg58My1GhF2MXU6fHZUSC_8-NVLKcEp_wjJ7Vw5vuQ48x-JVCQH4nQr9jMuHA9pnPNP97-_OuvVCwyoKkV3w2CppQj2FFACAyAVAH-kvgWLHUZO6gAnkh0EKWk9BRoDCGzu57kQWsW3Wiq6zFySwaeknEHE_ly8uHB7zHMRsNaF?purpose=fullsize)
-
-Technology: Python + FFmpeg + OpenCV.
-
-This stage prepares the video for AI analysis. No GPT calls are required here.
-
-We extract:
-
-| Asset                    | Example output                     |
-| ------------------------ | ---------------------------------- |
-| Original audio           | original_audio.wav                 |
-| Video frames             | frame_001.jpg, frame_002.jpg       |
-| Video metadata           | Duration, FPS, resolution          |
-| Embedded subtitle tracks | embedded_subtitles.srt, if present |
-| Frame timestamps         | 00:00:05.500                       |
-
-For a 60 FPS, one-minute video:
-
-60 \\times 60 = 3,600 \\text{ frames}
-
-We can extract all 3,600 frames locally, but we should not send all of them to GPT-4o.
-
-Instead, we use:
-
-* Scene-change detection.
-
-* Near-duplicate frame removal.
-
-* Text-change detection.
-
-* Important visual-region detection.
-
-* Additional sampling when content changes rapidly.
-
-We preserve the timestamps of all selected frames.
-
-Important distinction: Embedded subtitles are extractable as subtitle tracks. Burned-in subtitles are part of the video image, so they must be read visually.
-
-### Stage 3 — Japanese speech transcription
-
-![Tactiqによるリアルタイムの日本語会議トランスクリプション](https://images.openai.com/static-rsc-4/HGauiLbkirYRZCgv7J9GR5i_MkbJgFY8vaZ_Pt4-vKwxzbjFKQzuWqcMKZF1BFM6Bjkv6kAOF9KOY5MRFdLKGO6S2ry-Rj-d9Jv062tTnMTQoyHZGOXkLdyVtcbvBo7fxRU98hJ_1Ze8-yQPXbV2IxsZnsKyU-K1T4jbMU3m6x-16pwBBSnMQ7H41CwLEQiD?purpose=fullsize)
-
-Model: `gpt-4o-transcribe`.
-
-Input:
-
-`original_audio.wav`
-
-The model processes the Japanese audio and returns a Japanese transcript.
-
-Illustrative result:
-
-```text
-00:00:02 - この薬は効果があると言われていました。
-
-00:00:08 - しかし、実際には副作用が報告されています。
-
-00:00:15 - 患者は頭痛や吐き気を経験しています。
-```
-
-We retain:
-
-* Original Japanese text.
-
-* Segment start and end times, if supported by the transcription mode.
-
-* Language information.
-
-* Any available confidence or quality metadata.
-
-The transcript becomes the source for translation.
-
-### Stage 4 — Japanese to English translation
-
-![みんせつ、上場会社向けに「IR翻訳.ai」を提供開始 | 株式会社みんせつのプレスリリース](https://images.openai.com/static-rsc-4/qidi9xm9LC1e3E9LKeiLRHX7orhU4g_9QnQ-L2PPBYyctgWJvjBTPSuef8qbVsYD-mU20dOh1w-66EWz7ab-zUEsHB3bIWzihS5Gta1t6bUrw45Vuq-nVtoi1AlvV9h5qFd6ews6L_hYPEjAJT6C68Nr1IATChutxOBf0-MLOS96AgEAG8dLEo3cKZiuLPZ3?purpose=fullsize)
-
-Model: GPT-4o.
-
-Input: Japanese transcript.
-
-GPT-4o translates the transcript into English while preserving the original meaning.
-
-Illustrative result:
-
-```text
-00:00:02
-This medicine was said to be effective.
-
-00:00:08
-However, adverse effects have been reported in practice.
-
-00:00:15
-Patients are experiencing headaches and nausea.
-```
-
-We retain both languages rather than replacing the original transcript.
-
-Output:
-
-* `original_transcript.txt`
-
-* `english_transcript.txt`
-
-### Stage 5 — Subtitle extraction and processing
-
-Technology: FFmpeg + GPT-4o + Python.
-
-There are two cases:
-
-Case A: Embedded subtitle track
-
-If the video contains a separate subtitle stream, FFmpeg extracts it.
-
-Case B: Burned-in subtitles
-
-If Japanese subtitles are permanently displayed on the video:
-
-* OpenCV provides the relevant frames.
-
-* GPT-4o Vision reads the visible Japanese text.
-
-* We preserve its timestamp.
-
-* GPT-4o translates it into English.
-
-* Python generates subtitle files.
-
-Outputs:
-
-* `original_subtitles.srt`
-
-* `english_subtitles.srt`
-
-We should compare the extracted burned-in subtitles with the speech transcript. They may not always be identical.
-
-### Stage 6 — Visual intelligence
-
-![パブロンセレクトＣＶ 36錠 パブロン 大正製薬  ●◆ 【指定第2類医薬品】 | イオンスタイルオンライン 衣料品・暮らしの品をネットでお買物](https://images.openai.com/static-rsc-4/rQqhJ8_H3U6sxIFDc5bA_59JYXi7upiqql7jQAuOvN8KDrRu7QMAPR9MJ9Fc7IdD5U57P8fn0rYrXYoBudbk9qoPe6XhXS-sXrXTZklYAwKpZ1rK0zu7VvWmpfQZ2UiC1Q66sJ_yByQVY9d0pt3enmQotZObcQyo_S-Q8jMCwlpz9TyQp9TPUL_hA1doEJgx?purpose=fullsize)
-
-![サークリサ®＋カルフィルゾミブ＋デキサメタゾン併用療法（IsaKd療法）の治療を受けられる方へ┃サークリサ®をお使いになる 患者さん、ご家族の皆さまへ](https://images.openai.com/static-rsc-4/E6E4JraHe5FDn6IK8wAwbII4VwOc2Yx0oKEGwkqMUWT7hoyYuAONiHF30UVq0vVZ97Duccaqy8sH3-b26Maoa4iVm8nj6e0fApqZL1ZJBNXBCeBcNSEtcGOvzT72tj5I__vM5jLLc-gFdyD32d3jMhnIxvmdUGXfyBERnWyErrG92zxXIXEPUmU6_PupbM7X?purpose=fullsize)
-
-![LINE�⃁�b�Z�\[�W�̕����Ɂu�B�v��t���闝�R�^�t���Ȃ����R�F�ǎ҃A���P�\[�g���ʔ��\\�FITmedia Mobile�ǎ҂ɕ����i1/2 �y�\[�W�j - ITmedia Mobile](https://images.openai.com/static-rsc-4/L742BdmqCIlDtYKgBZ-iNWS3fQLmzm1mUqv-iQ-_CUG0iUb6fWwLDRpsLc5K3pHrPfIc0rLGDXYBC-tryVkfoV1dhtdS0x3bIoA5WxmAXPFr29Twj4IeMkEGKGieqdrT7LpuI1Gz57IMTfrC4ZP2DSXK8yUcpnmuc7sYR0yy4k4dLLtaFGiCFtxuTuJNHwjB?purpose=fullsize)
-
-Model: GPT-4o Vision.
-
-This is one of the most important parts of our platform.
-
-We send selected video frames to GPT-4o in batches.
-
-For our proposed initial design:
-
-* 3,600 frames extracted locally.
-
-* Approximately 250 selected for AI analysis.
-
-* 10 images per visual request.
-
-* Approximately 25 visual-analysis requests.
-
-GPT-4o analyses the frames for:
-
-| Category            | What it extracts                          |
-| ------------------- | ----------------------------------------- |
-| OCR                 | Japanese text displayed in images         |
-| Subtitles           | Burned-in Japanese subtitles              |
-| Products            | Product and medicine names                |
-| Brands              | Logos and brand names                     |
-| Medical information | Symptoms, risks and adverse effects       |
-| Charts              | Titles, labels, values and trends         |
-| Chats               | Messages and patient experiences          |
-| Other visuals       | Screenshots, packaging, labels and claims |
-
-For example, a slide might display:
-
-* Medicine: Product A
-
-* Claimed benefit: Reduces symptoms
-
-* Reported risk: Nausea
-
-* Other reported effect: Headache
-
-The speaker may mention only nausea, while the slide also displays headache.
-
-Our system must retain both findings.
-
-Accuracy consideration: Japanese text and small text can be challenging for vision models. Important text should be cropped and enlarged for inspection. GPT-4o can make mistakes, so unreadable content should be marked rather than guessed. Microsoft Learn +1
-
-### Stage 7 — Entity and information extraction
-
-Model: GPT-4o.
-
-Now we consolidate the important entities from both audio and visual evidence.
-
-Example:
-
-```json
-{
-  "products": [
-    {
-      "name": "Product A",
-      "source": "visual",
-      "timestamp": "00:00:12"
-    }
-  ],
-  "medical_entities": [
-    {
-      "name": "Headache",
-      "category": "adverse_effect",
-      "source": "visual"
-    },
-    {
-      "name": "Nausea",
-      "category": "adverse_effect",
-      "source": "audio"
-    }
-  ]
-}
-```
-
-We extract:
-
-* Product names.
-
-* Medicine names.
-
-* Brand names.
-
-* Symptoms.
-
-* Adverse events.
-
-* Benefits and claims.
-
-* Risks and warnings.
-
-We should distinguish explicitly displayed information from model-inferred information.
-
-### Stage 8 — Evidence layer
-
-Technology: GPT-4o + Python + Pydantic + Azure SQL + Blob Storage.
-
-This is the central part of our architecture.
-
-Instead of generating summaries immediately, we first create structured evidence records.
-
-Every finding should contain:
-
-| Field           | Purpose                             |
-| --------------- | ----------------------------------- |
-| Evidence ID     | Unique identification               |
-| Video ID        | Original video reference            |
-| Timestamp       | When it appeared                    |
-| Source          | Audio, subtitle or visual           |
-| Category        | Product, risk, symptom, claim, etc. |
-| Original text   | Japanese finding                    |
-| English text    | English translation                 |
-| Confidence      | Extraction confidence               |
-| Frame reference | Relevant image, if applicable       |
-
-Example:
-
-```json
-{
-  "evidence_id": "EV_001",
-  "video_id": "VID_001",
-  "timestamp": "00:00:15",
-  "source": "visual",
-  "category": "adverse_effect",
-  "original_text": "頭痛",
-  "english_text": "Headache",
-  "confidence": 0.94,
-  "frame_reference": "frame_015.jpg"
-}
-```
-
-Confidence here means confidence in extracting or interpreting the finding, not whether the medical claim is scientifically true.
-
-All records are stored in Azure SQL, while original files and extracted assets are stored in Blob Storage.
-
-### Stage 9 — Evidence comparison and discrepancy detection
-
-Model: GPT-4o.
-
-Now we compare three independent sources:
-
-* What the speaker says.
-
-* What the subtitles display.
-
-* What the images, slides and chats display.
-
-Example:
-
-| Information | Audio | Subtitles | Visuals |
-| ----------- | ----- | --------- | ------- |
-| Nausea      | Yes   | Yes       | Yes     |
-| Headache    | No    | No        | Yes     |
-| Dizziness   | Yes   | Yes       | No      |
-
-Our system identifies:
-
-* Information appearing in all sources.
-
-* Information appearing only in audio.
-
-* Information appearing only visually.
-
-* Differences between spoken and displayed content.
-
-* Potential contradictions requiring review.
-
-We do not automatically call something false just because it differs between sources.
-
-### Stage 10 — Final summarization
-
-Model: GPT-4o.
-
-Once evidence is collected and reconciled, GPT-4o generates three outputs.
-
-1\. Video summary
-
-Audio-based
-
-Summarises what the speaker discusses.
-
-2\. Visual summary
-
-Visual-based
-
-Summarises products, screenshots, text, charts, symptoms and other displayed information.
-
-3\. Executive summary
-
-Combined intelligence
-
-Combines audio and visual findings, highlights important claims, discrepancies and potential risks.
-
-Every important finding should link back to its evidence ID and timestamp.
-
-### Stage 11 — Output generation
-
-Technology: Python + ReportLab + JSON + SRT.
-
-The platform prepares a download centre.
-
-### Analysis download centre
-
-Original Japanese audio
-
-original_audio.wav
-
-Output
-
-Japanese transcript
-
-original_transcript.txt
-
-Output
-
-English transcript
-
-english_transcript.txt
-
-Output
-
-Original subtitles
-
-original_subtitles.srt
-
-Output
-
-English subtitles
-
-english_subtitles.srt
-
-Output
-
-Evidence records
-
-evidence.json
-
-Output
-
-Visual findings
-
-visual_findings.json
-
-Output
-
-Complete analysis report
-
-analysis_report.pdf
-
-Output
-
-English audio is deliberately excluded from this version of the pipeline.
-
-### 6\. How the complete system operates
-
-The user performs only one action: clicks Analyse.
-
-The backend handles the internal workflow.
-
-```text
-React Frontend
-      |
-      | POST /api/analyze
-      v
-FastAPI Backend
-      |
-      v
-Create Processing Job
-      |
-      v
 Video Preprocessing
-      |
-      +---- Audio Extraction
-      |          |
-      |          v
-      |    GPT-4o Transcribe
-      |          |
-      |          v
-      |    Japanese Transcript
-      |          |
-      |          v
-      |    GPT-4o Translation
-      |
-      +---- Frame Extraction
-                 |
-                 v
-          Intelligent Selection
-                 |
-                 v
-          GPT-4o Vision Analysis
-                 |
-                 v
-          Entity Extraction
-                 |
-                 v
-          Evidence Layer
-                 |
-                 v
-          Evidence Comparison
-                 |
-                 v
-          GPT-4o Summarization
-                 |
-                 v
-          JSON + SRT + PDF
-                 |
-                 v
-          Azure Blob + SQL
-                 |
-                 v
-          React Results Dashboard
+
+FFmpeg + OpenCV · Decode sequentially
+
+Track A Visual frame selection
+
+Select 80–100 representative frames (initial target).
+
+Track B Subtitle OCR
+
+Extract complete burned-in subtitle timeline.
+
+Track C Audio extraction
+
+Extract audio for speech transcription.
+
+Evidence Collection
+
+Visual evidence + subtitle evidence + audio transcript
+
+GPT-4o Analysis
+
+Translation, reconciliation, entities and summaries
+
+The three tracks can operate independently. For your heat-sensitive ThinkPad, we'll initially execute them sequentially or with controlled concurrency.
+
+### 3\. Track A – Visual frame selection
+
+Objective: Reduce 900 frames to a smaller set while preserving meaningful visual information.
+
+Five techniques:
+
+| Technique               | Purpose                                         |
+| ----------------------- | ----------------------------------------------- |
+| Scene Detection         | Identify scene changes                          |
+| Keyframe Selection      | Select representative frames                    |
+| pHash / SSIM            | Remove redundant frames                         |
+| OCR-assisted protection | Preserve frames containing changing visual text |
+| Motion Detection        | Identify meaningful movement                    |
+
+Example:
+
+```text
+900 decoded frames
+       |
+Scene Detection
+       |
+Keyframe Selection
+       |
+Duplicate Removal
+       |
+Motion + Text Protection
+       |
+80–100 selected frames (illustrative)
 ```
 
-For production, I recommend a background job worker so that a long-running analysis does not keep the initial HTTP request open. FastAPI manages the API, while the worker executes the processing stages and updates the job status.
+These selected frames will help identify:
 
-### 7\. Final technology and model inventory
+* Medicines and product packaging.
 
-| Category                  | Selected technology           |
-| ------------------------- | ----------------------------- |
-| Frontend                  | React + TypeScript + Tailwind |
-| Backend                   | Python + FastAPI              |
-| Video processing          | FFmpeg                        |
-| Frame processing          | OpenCV                        |
-| Main reasoning and vision | GPT-4o                        |
-| Speech recognition        | GPT-4o Transcribe             |
-| AI platform               | Azure OpenAI                  |
-| Deployment region         | East US                       |
-| File storage              | Azure Blob Storage            |
-| Database                  | Azure SQL                     |
-| Data validation           | Pydantic                      |
-| Database integration      | SQLAlchemy                    |
-| Report generation         | ReportLab                     |
-| Subtitle generation       | Python                        |
+* Charts and graphs.
 
-AI model count: 2 deployments.
+* Logos and images.
 
-* GPT-4o
+* Medical claims and adverse-effect information.
 
-* GPT-4o Transcribe
+* Screenshots and chat messages.
 
-No Azure AI Speech, no separate TTS model, and no English audio generation.
+* Other important visual elements.
 
-### 8\. Important implementation decisions still to validate
+### 4\. Track B – Subtitle extraction
 
-I want to separate what we have designed from what has already been technically proven.
+Objective: Extract the complete burned-in subtitle timeline, not just subtitles visible in selected frames.
 
-| Item                                       | Current position                         |
-| ------------------------------------------ | ---------------------------------------- |
-| GPT-4o image analysis                      | Supported                                |
-| Japanese-to-English translation            | Planned using GPT-4o                     |
-| GPT-4o Transcribe deployment               | Must verify availability in East US      |
-| Exact timestamp support from transcription | Verify chosen API mode                   |
-| 250-frame selec
+Process:
+
+* Read the full video timeline.
+
+* Inspect the subtitle region across frames.
+
+* Detect new or changing text.
+
+* Run OCR when appropriate.
+
+* Remove duplicate text observations.
+
+* Preserve original timestamps.
+
+* Generate JSON and SRT files.
+
+Example:
+
+```text
+900 frames
+    |
+Subtitle-region inspection
+    |
+Text change detection
+    |
+OCR
+    |
+Duplicate text handling
+    |
+Complete subtitle timeline
+```
+
+Important: Track B must not depend on Track A's 80–100 selected frames.
+
+We cannot guarantee zero OCR misses, so we'll validate against the original video, particularly for short-lived subtitles.
+
+### 5\. Track C – Audio extraction
+
+Objective: Extract the complete original audio independently of visual frame selection.
+
+```text
+Original video
+      |
+FFmpeg
+      |
+Extract audio
+      |
+WAV file
+      |
+GPT-4o Transcribe
+      |
+Original-language transcript
+      |
+GPT-4o translation
+      |
+English transcript
+```
+
+For our Japanese example, we preserve the Japanese transcript and generate its English translation.
+
+English audio generation is excluded.
+
+### 6\. Project folder structure
+
+```text
+video-preprocessing/
+│
+├── input/
+│   └── test_video.mp4
+│
+├── temp/
+│   └── processing/
+│
+├── output/
+│   └── video_001/
+│       │
+│       ├── frames/
+│       │   ├── frame_000120.jpg
+│       │   ├── frame_000245.jpg
+│       │   └── ...
+│       │
+│       ├── audio/
+│       │   └── original_audio.wav
+│       │
+│       ├── subtitles/
+│       │   ├── original_subtitles.json
+│       │   ├── original_subtitles.srt
+│       │   └── subtitle_ocr_evidence.json
+│       │
+│       ├── transcripts/
+│       │   ├── original_transcript.json
+│       │   └── english_transcript.json
+│       │
+│       └── reports/
+│           ├── processing_report.json
+│           ├── scene_report.json
+│           └── selected_frames.json
+│
+├── src/
+│   ├── preprocessing/
+│   │   ├── video_loader.py
+│   │   ├── frame_extractor.py
+│   │   └── audio_extractor.py
+│   │
+│   ├── frame_selection/
+│   │   ├── scene_detector.py
+│   │   ├── keyframe_selector.py
+│   │   ├── duplicate_remover.py
+│   │   └── motion_detector.py
+│   │
+│   ├── ocr/
+│   │   ├── subtitle_extractor.py
+│   │   ├── visual_ocr.py
+│   │   └── text_change_detector.py
+│   │
+│   ├── batch_processing/
+│   │   └── batch_processor.py
+│   │
+│   ├── monitoring/
+│   │   ├── temperature_monitor.py
+│   │   └── memory_monitor.py
+│   │
+│   ├── reporting/
+│   │   └── report_generator.py
+│   │
+│   └── pipeline.py
+│
+├── tests/
+├── logs/
+├── main.py
+├── requirements.txt
+├── README.md
+└── .gitignore
+```
+
+### 7\. Our first test configuration
+
+| Parameter               | Value                |
+| ----------------------- | -------------------- |
+| Video duration          | 30 seconds           |
+| FPS                     | 30                   |
+| Total frames            | 900                  |
+| Initial batch size      | 15                   |
+| Number of batches       | 60                   |
+| Visual frame target     | 80–100               |
+| Subtitle coverage       | Full video timeline  |
+| Audio extraction        | Full audio           |
+| Permanent frame storage | Selected frames only |
+
+The batch size is a starting point. We will benchmark it on the ThinkPad before increasing it.
+
+### 8\. Implementation order
+
+* Video loading and metadata extraction.
+
+* Sequential frame decoding and audio extraction.
+
+* Batch processing.
+
+* Scene detection and keyframe selection.
+
+* Duplicate removal and motion analysis.
+
+* Subtitle OCR and text-change detection.
+
+* Visual OCR on selected frames.
+
+* Integration of all three tracks.
+
+* Testing, accuracy validation and resource monitoring.
+
+### Our final objective
+
+From one video, produce three complete sources of evidence:
+
+* Track A: Important visual frames.
+
+* Track B: Complete visible subtitle timeline.
+
+* Track C: Complete audio and speech transcript.
+
+Then combine these sources for GPT-4o to understand what the speaker says, what the video displays, and whether the audio and visual information differ.
+
+That's the foundation of our Multilingual Video Intelligence Platform. ❤️
